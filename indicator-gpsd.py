@@ -1,49 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#
-# GPS applet for Unity with Sierra Wireless MC8355 - Gobi 3000(TM) Module GPS power toggle
-# reads gpsd default tcp\ip socket at 127.0.0.1:2947
-# before using this applet please make sure GPS module is installed and run:
-# apt-get install gpsd
-# dpkg-reconfigure gpsd
-# then add yourself into dialout group (maybe you'll need to reboot):
-# sudo adduser USERNAME dialout
-#
-# gpsd docs: http://catb.org/gpsd/gpsd_json.html
-import time
+# indicator-gpsd v0.0.2
+# https://github.com/alteist/indicator-gpsd
 
-__author__ = 'Roman Rakul <alteist@gmail.com>'
-__license__ = 'BSD'
-__version__ = '0.0.1'
-# BSD terms apply: see the file COPYING in the distribution root for details.
-
-# you can check if GPS_DEV is right by executing:
-# sudo su -
-# echo "\$GPS_START" > /dev/ttyUSB2
-# cat /dev/ttyUSB2
-# if you see something like:
-# GPGSV,3,1,12,03,47,085,29,05,06,323,22,06,34,063,27,07,58,309,31
-# then this applet will have power control over GOBI3000 GPS
-# press CTRL+C to stop stream from ttyUSB
-GPS_DEV = "/dev/ttyUSB2"
-
-# when you close connection to gpsd, it still reads data from GPS device for some time (I think it's 60 seconds)
-# and I didn't find a way to stop it immediately to turn off power of the GOBI3000 GPS
-# and the device cannot be turned off if someone uses it
-# so I added this timeout (65 seconds in ms)
-GPS_OFF_TIMEOUT = 65000
-# Note: I think gpsd has to manage power state of the GPS device itself,  if someone wants to send patches to the author
-# here is the clue for Sierra Wireless MC8355 - Gobi 3000(TM) Module:
-# lsusb:
-# Bus 002 Device 003: ID 1199:9013 Sierra Wireless, Inc.
-# turn on:
-# echo "\$GPS_START" > /dev/ttyUSB2
-# turn off:
-# echo "\$GPS_STOP" > /dev/ttyUSB2
-
-# cat /etc/default/gpsd to check these if there are non-default settings for these:
-GPSD_HOST = "127.0.0.1"
-GPSD_PORT = 2947
+### BEGIN BSD LICENSE
+# Copyright (c) 2013, Roman Rakul, alteist@gmail.com
+# All rights reserved.
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+# Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+### END BSD LICENSE
 
 import os
 import gobject
@@ -52,6 +19,12 @@ import appindicator
 import sys
 import gps
 from socket import error as SocketError
+
+# see README.md for help on options
+GPS_OFF_TIMEOUT = 65000
+GPS_DEV = "/dev/ttyUSB2"
+GPSD_HOST = "127.0.0.1"
+GPSD_PORT = 2947
 
 class GPS(appindicator.Indicator):
     # If GPS enabled on indicator start, also used to store current state
@@ -66,22 +39,26 @@ class GPS(appindicator.Indicator):
     # Entry point
     def __init__(self):
         appindicator.Indicator.__init__(self,
-            "indicator-gps",
-            "/home/stinger/gps-off.png",
+            "indicator-gpsd",
+            os.path.abspath('.')+"/indicator-gpsd-off.png",
             appindicator.CATEGORY_HARDWARE)
         self.set_status(appindicator.STATUS_ACTIVE)
-        self.set_attention_icon ("/home/stinger/gps-on.png",)
+        self.set_attention_icon (os.path.abspath('.')+"/indicator-gpsd-on.png",)
         self.redraw_ui()
 
-    # open Google maps in default browser
+    # open Google Maps in default browser
     def gmaps(self, menuitem, select, gpsdata):
         latlon = "%s,%s" % (gpsdata.lat,gpsdata.lon)
         os.system('x-www-browser "http://maps.google.com/maps?ll=%s&q=%s"' % (latlon,latlon))
 
-    # open Yandex maps in default browser
+    # open Yandex Maps in default browser
     def ymaps(self, menuitem, select, gpsdata):
         lonlat = "%s,%s" % (gpsdata.lon,gpsdata.lat)
         os.system('x-www-browser "http://maps.yandex.ru/?ll=%s&q=%s&z=13&l=map"' % (lonlat,lonlat))
+
+    # open Open Street Map in default browser
+    def osmaps(self, menuitem, select, gpsdata):
+        os.system('x-www-browser "http://www.openstreetmap.org/index.html?lat=%s&lon=%s&zoom=13"' % (gpsdata.lat,gpsdata.lon))
 
     # "Quit" button action
     def quit(self, widget):
@@ -150,15 +127,21 @@ class GPS(appindicator.Indicator):
                 # ----
                 self.menu.append(gtk.SeparatorMenuItem())
 
-#                # Open GMaps
-#                open_gmaps = gtk.MenuItem("Open location in Google Maps")
-#                open_gmaps.connect("activate", self.gmaps, 'gpsdata', gpsdata)
-#                self.menu.append(open_gmaps)
-#
-#                # Open YMaps
-#                open_ymaps = gtk.MenuItem("Open location in Yandex Maps")
-#                open_ymaps.connect("activate", self.ymaps, 'gpsdata', gpsdata)
-#                self.menu.append(open_ymaps)
+                # Open Google Maps
+                open_gmaps = gtk.MenuItem("Open location in Google Maps")
+                open_gmaps.connect("activate", self.gmaps, 'gpsdata', gpsdata)
+                self.menu.append(open_gmaps)
+
+                # Open Yandex Maps
+                open_ymaps = gtk.MenuItem("Open location in Yandex Maps")
+                open_ymaps.connect("activate", self.ymaps, 'gpsdata', gpsdata)
+                self.menu.append(open_ymaps)
+
+                # Open Open Street Map
+                open_osmaps = gtk.MenuItem("Open location in Open Street Maps")
+                open_osmaps.connect("activate", self.osmaps, 'gpsdata', gpsdata)
+                self.menu.append(open_osmaps)
+
         else:
             self.gpsState = gtk.MenuItem("GPS is Off")
             self.menu.append(self.gpsState)
